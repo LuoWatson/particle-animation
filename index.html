@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title> Index Page. </title>
+  <style>
+
+    * { margin: 0; padding: 0 }
+
+    html,body { height: 100%; overflow: hidden }
+
+    body {
+      background-image: url(./bg-img.jpg);
+      background-repeat: no-repeat;
+      background-size: cover;
+    }
+
+    /*#can { border: 1px solid #0F0 }    */
+
+  </style>
+</head>
+<body>
+
+  <canvas id='can'></canvas>
+
+  <script>
+
+    let ParticleAnimation = function (opts, func) {
+
+      (function (proto, funcs) { for(var key in funcs) { proto[key] = funcs[key] } })(
+
+      ParticleAnimation.prototype, {
+
+        paintingTool () {
+
+          // 获取 Canvas 的绘画工具
+          return this.ctx = this.canvas.getContext('2d');
+        },
+
+        getRandomNum (min, max) {
+
+          // 获取一个指定区间的随机数
+          return Math.random() * (max - min + 1) + min;
+        },
+
+        getDistances (x1, y1, x2, y2) {
+
+          // 计算两点间的距离: 勾股定理 => a²+b²=c²
+          // 计算距离公式： AB2=|20-（-20）|2+|（-10）-20|2=2500 所以 |AB| = 50。
+          // 勾股定理是一个基本的几何定理，指直角三角形的两条直角边的平方和等于斜边的平方。
+          return Math.sqrt( Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
+        },
+
+        getCanvasElem () {
+          this.canvas = document.getElementById(opts.slice(1));
+        },
+
+        setCanvasSize () {
+
+          // 设置Canvas 尺寸 / 可视区域大小
+          this.canvas.width  = null || document.body.clientWidth;
+          this.canvas.height = null || document.body.clientHeight;
+
+          // 注册窗口重置事件， 当窗口大小发生改变时重新设置 Canvas 的尺寸
+          window.onresize = (function () { this.setCanvasSize() } ).bind(this);
+        },
+
+        createCanDots () {
+
+          // 指定一个用来存放粒子的数组
+          this.dots = [];
+
+          var
+          canvas = this.canvas,
+          random = this.getRandomNum;
+
+          // 循环创建粒子，将其添加到数组中
+          for(var i = 0; i < 128; i++) {
+
+            this.dots.push({
+
+              // 粒子坐标 随机生成
+              ox: random(0, canvas.width),
+              oy: random(0, canvas.height),
+
+              // 移动速度 随机生成
+              xs: random(-1, 1),
+              ys: random(-1, 1)
+            })
+          }
+        },
+
+        setMouseHover () {
+
+          this.canvas.onmousemove = event =>{
+
+            var
+
+            temp = [0, 0],
+            dots = this.dots,
+
+            // 当前鼠标的坐标值
+            mouseX = event.offsetX,
+            mouseY = event.offsetY;
+
+            // 将第一个粒子的坐标与当前鼠标的坐标进行计算，得到的距离存放到temp中
+            temp[0] = this.getDistances(mouseX, mouseY, dots[0].ox, dots[0].oy);
+
+            for(var i = 0; i < dots.length; i++) {
+
+              // 遍历数组中的粒子，找到与鼠标最近的一个粒子，将其在数组中的下标
+              // 存放到 temp 临时变量中，该粒的坐标后会随鼠标坐标的变化而变化
+
+              var dist = this.getDistances(mouseX, mouseY, dots[i].ox, dots[i].oy);
+              dist < temp[0] ? ( temp[0] = dist, temp[1] = i) : null;
+            }
+
+            // 更新该粒子的坐标
+            dots[temp[1]].ox = event.offsetX;
+            dots[temp[1]].oy = event.offsetY;
+
+            // 鼠标的索引
+            this.dIdx = temp[1];
+
+            // 鼠标的运动状态
+            this.mouseState = !0;
+
+            // 清除上一个定时器
+            clearTimeout(this.timer);
+
+            // 如果鼠标停止运动， 则修改当前鼠标的运动状态为 False
+            this.timer = setTimeout( e => this.mouseState = !1, 100);
+          }
+        },
+
+        drawLines (ctx, strokeStyle, x1, y1, x2, y2) {
+
+          // 开启路径
+          ctx.beginPath();
+
+          // 设置样式
+          ctx.lineWidth = 5;
+          ctx.strokeStyle = strokeStyle;
+
+          // 绘制线条
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        },
+
+        drawLittleDots (ctx, dot) {
+
+          // 绘制小圆点
+          ctx.beginPath();
+          ctx.fillStyle = '#FFF';
+          ctx.arc(dot.ox, dot.oy, 8, 0, Math.PI*2, true);
+          // .arc(x, y, r, startAngle, endAngle, counterclockwise);
+
+          ctx.fill();
+        },
+
+        drawLineBetweenMDots (ctx, dot){
+
+          // 鼠标点的粒子坐标
+          var
+          dotOx = this.dots[this.dIdx || 0].ox,
+          dotOy = this.dots[this.dIdx || 0].oy,
+
+          // 计算粒子到鼠标点的距离
+          oDist = this.getDistances(dot.ox, dot.oy, dotOx, dotOy);
+
+          // 鼠标移动时; 如果粒子的到鼠标的距离小于 150, 则将该粒子向鼠标靠拢
+          if(this.mouseState && oDist <= 150){
+
+            if( oDist > (150 * .8) ){
+
+              // 更新粒子坐标，让其向鼠标方向移动
+              dot.ox -= (dot.ox - dotOx) *.038;
+              dot.oy -= (dot.oy - dotOy) *.038;
+            }
+
+            // 绘制粒子到鼠标间的线条
+            this.drawLines(ctx, '#F00', dot.ox, dot.oy, dotOx, dotOy);
+          }
+        },
+
+        drawLineBetweenTDots (ctx, dot) {
+
+          // 遍历数组中所有粒子，对其进行连线操作
+          for(var i = 0; i < this.dots.length; i++) {
+
+            var
+
+            // 内层循环中的粒子坐标
+            dotCx = this.dots[i].ox,
+            dotCy = this.dots[i].oy,
+
+            // 计算两个粒子之间的距离
+            cDist = this.getDistances(dot.ox, dot.oy, dotCx, dotCy);
+
+            // 若两个粒子间的距离小于 100, 则将其连线
+            if(this.dots[i] != dot && cDist < 100){
+
+              // 线条颜色 'rgba(*, *, *, ${线条透明度})'
+              var strokeStyle = `rgba(25, 250, 250, ${(100 - cDist) * .01})`;
+
+              // 绘制两个粒子间的线条
+              this.drawLines(ctx, strokeStyle, dot.ox, dot.oy, dotCx, dotCy);
+            }
+
+
+          }
+        },
+
+        startBlinking () {
+
+          // 得到绘图工具
+          let ctx = this.ctx || this.paintingTool();
+
+          // 清空上一帧绘制的图形
+          ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+          // 遍历数组中的所有粒子，每一帧动画的处理逻辑
+          this.dots.forEach(function (dot, idx) {
+
+            // 让粒子进行位移
+            // 新坐标 = 旧坐标 + 速度
+            dot.ox += dot.xs;
+            dot.oy += dot.ys;
+
+            // 粒子遇到边界做反弹处理
+            dot.xs *= (dot.ox > this.canvas.width  || dot.ox < 0) ? -1 : 1;
+            dot.ys *= (dot.oy > this.canvas.height || dot.oy < 0) ? -1 : 1;
+
+            // 在两个粒子之间画一条线
+            this.drawLineBetweenTDots(ctx, dot);
+
+            // 在鼠标粒子之间画一条线
+            this.drawLineBetweenMDots(ctx, dot);
+
+            // 在画布上绘制小圆点
+            this.drawLittleDots(ctx, dot);
+
+          }, this)
+
+          // 执行帧动画
+          // 该方法等同于: setTimeout( e => this.startBlinking(), 1000 / 60);
+          window.requestAnimationFrame( this.startBlinking.bind(this) );
+        }
+      });
+
+      func.call(this);
+    }
+
+    new ParticleAnimation('#can', function () {
+      this.getCanvasElem();   // 获取当前画布
+      this.setCanvasSize();   // 设置画布尺寸
+      this.createCanDots();   // 创建粒子对象
+      this.startBlinking();   // 执行粒子动画
+      this.setMouseHover();   // 鼠标移动状态 
+    });
+
+  </script>
+
+</body>
+</html>
+
+<!-- 
+
+原理剖析:
+
+  准备工作:
+
+    一张用于绘图的Canvas 画布; 和一个存放粒子对象(x,y轴坐标; x,y 移动速度) 的数组 (dots);
+    以及处理每一帧动画的函数(startBlinking) ——所有的动画逻辑都将在这里面进行(绘制圆点、直线...);
+    还有一个用来触发(执行)每一帧动画的工具( requestAnimationFrame), 你也可以用 setTimeout / setInterval 它们的效果都是一样的
+
+
+  实现细节:
+
+    循环遍历dots数组，根据粒子对象的X,Y轴坐标值在Canvas 上绘制小圆点，并检测两点之间的直线距离
+    是否小于某个给定的数值，如果条件成立则对其进行连线操作; 接着检测当前鼠标是否在Canvas 画布上
+    移动，如果成立则让符合条件的粒子向鼠标靠拢。 后调用requestAnimationFrame(startBlinking)
+    来重复以上逻辑进行帧动画(1000 / 60 ms) ——更新粒子坐标值 (新坐标 = 旧坐标 + 速度)。
+
+  实现难点:
+
+    1. 粒子如何进行位移 ?   => 改变粒子的坐标值; 新坐标 = 旧坐标 + 速度
+    2. 粒子越界如何处理 ?   => 修改x,y轴速度值的符号位 ——正数改为负数，反之亦然
+    3. 如何设置线条透明度 ? => (最大距离 - 当前距离) * 0.01 —— (100 - 当前两点间的距离) * 0.01
+    4. 怎么计算两个点间的直线距离 ?  => 套用勾股定理: a²+b²=c² -> (x1-x2)² + (y1-y2)² 取其根号可得
+    5. 粒子如何才能朝鼠标方向移动 ?  => (粒子坐标 - 鼠标坐标) * 0.038  ——亦是通过符号位来做的计算
+
+ //----------------------------------------------------------------------------------- 
+ -->
